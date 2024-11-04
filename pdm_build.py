@@ -1,3 +1,4 @@
+# pdm_build.py
 import sys
 import os
 
@@ -65,53 +66,11 @@ glmnet_lib = Extension(
     library_dirs=library_dirs,
 )
 
+def pdm_build_update_setup_kwargs(context, setup_kwargs):
+    setup_kwargs.update(ext_modules=glmnet_lib)
 
-from skbuild import setup
 
-setup(
-    name="fibby",
-    version="0.0.1",
-    description="a minimal example package (fortran version)",
-    license="MIT",
-    packages=['fibby'],
-    python_requires=">=3.7",
-)
-
-if __name__ == "__main__":
-    setup(
-        name="glmnet",
-        version=_VERSION,
-        description="Python wrapper for glmnet",
-        long_description=read("README.rst"),
-        long_description_content_type="text/x-rst",
-        author="Civis Analytics Inc",
-        author_email="opensource@replicahq.com",
-        url="https://github.com/replicahq/python-glmnet",
-        install_requires=[
-            "numpy>=1.9.2",
-            "scikit-learn>=0.18.0",
-            "scipy>=0.14.1",
-            "joblib>=0.14.1",
-        ],
-        python_requires=">=3.9",
-        # We need pkg_resources, shipped with setuptools,
-        # for version numbering.
-        setup_requires=["setuptools"],
-        ext_modules=[glmnet_lib],
-        packages=["glmnet"],
-        classifiers=[
-            "Development Status :: 5 - Production/Stable",
-            "Environment :: Console",
-            "Programming Language :: Python",
-            "Programming Language :: Python :: 3",
-            "Programming Language :: Python :: 3.9",
-            "Programming Language :: Python :: 3.10",
-            "Programming Language :: Python :: 3.11",
-            "Programming Language :: Python :: 3 :: Only",
-            "Operating System :: OS Independent",
-            "Intended Audience :: Developers",
-            "Intended Audience :: Science/Research",
-            "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
-            "Topic :: Scientific/Engineering",
-        ],
-    )
+def pdm_build_update_files(context, files):
+    # add more files to the dst directory
+    new_file = do_create_files()
+    files["new_file"] = new_file
