@@ -1,25 +1,27 @@
 import numpy as np
 
+from scipy.special import expit
 from scipy.sparse import issparse, csc_matrix
 from scipy import stats
 
 from sklearn.base import BaseEstimator
-from sklearn.metrics import r2_score
-from sklearn.model_selection import KFold, GroupKFold
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import StratifiedKFold, GroupKFold
 from sklearn.utils import check_array, check_X_y
+from sklearn.utils.multiclass import check_classification_targets
 
 from .errors import _check_error_flag
-from _glmnet import elnet, spelnet, solns
+from fglmnet import lognet, splognet, lsolns
 from glmnet.util import (_fix_lambda_path,
                          _check_user_lambda,
                          _interpolate_model,
                          _score_lambda_path)
 
 
-class ElasticNet(BaseEstimator):
-    """Elastic Net with squared error loss.
+class LogitNet(BaseEstimator):
+    """Logistic Regression with elastic net penalty.
 
-    This is a wrapper for the glmnet function elnet.
+    This is a wrapper for the glmnet function lognet.
 
     Parameters
     ----------
@@ -44,6 +46,9 @@ class ElasticNet(BaseEstimator):
         will be on the scale of the original data regardless of the value
         of standardize.
 
+    fit_intercept : bool, default True
+        Include an intercept term in the model.
+
     lower_limits : array, (shape n_features,) default -infinity
         Array of lower limits for each coefficient, must be non-positive.
         Can be a single value (which is then replicated), else an array
@@ -53,23 +58,20 @@ class ElasticNet(BaseEstimator):
         Array of upper limits for each coefficient, must be positive.
         See lower_limits.
 
-    fit_intercept : bool, default True
-        Include an intercept term in the model.
-
     cut_point : float, default 1
         The cut point to use for selecting lambda_best.
             arg_max lambda  cv_score(lambda) >= cv_score(lambda_max) - cut_point * standard_error(lambda_max)
 
     n_splits : int, default 3
-        Number of cross validation folds for computing performance metrics
-        (including determination of `lambda_best_` and `lambda_max_`). If
-        non-zero, must be at least 3.
+        Number of cross validation folds for computing performance metrics and
+        determining `lambda_best_` and `lambda_max_`. If non-zero, must be
+        at least 3.
 
-    scoring : string, callable, or None, default None
+    scoring : string, callable or None, default None
         Scoring method for model selection during cross validation. When None,
-        defaults to r^2 score. Valid options are `r2`, `mean_squared_error`,
-        `mean_absolute_error`, `median_absolute_error`. Alternatively, supply
-        a function or callable object with the following signature
+        defaults to classification score. Valid options are `accuracy`,
+        `roc_auc`, `average_precision`, `precision`, `recall`. Alternatively,
+        supply a function or callable object with the following signature
         ``scorer(estimator, X, y)``. Note, the scoring function affects the
         selection of `lambda_best_` and `lambda_max_`, fitting the same data
         with different scoring methods will result in the selection of
@@ -82,7 +84,7 @@ class ElasticNet(BaseEstimator):
         Convergence tolerance.
 
     max_iter : int, default 100000
-        Maximum passes over the data for all values of lambda.
+        Maximum passes over the data.
 
     random_state : number, default None
         Seed for the random number generator. The glmnet solver is not
@@ -98,6 +100,9 @@ class ElasticNet(BaseEstimator):
 
     Attributes
     ----------
+    classes_ : array, shape(n_classes,)
+        The distinct classes/labels found in y.
+
     n_lambda_ : int
         The number of lambda values found by glmnet. Note, this may be less
         than the number specified via n_lambda.
@@ -105,17 +110,17 @@ class ElasticNet(BaseEstimator):
     lambda_path_ : array, shape (n_lambda_,)
         The values of lambda found by glmnet, in decreasing order.
 
-    coef_path_ : array, shape (n_features, n_lambda_)
+    coef_path_ : array, shape (n_classes, n_features, n_lambda_)
         The set of coefficients for each value of lambda in lambda_path_.
 
-    coef_ : array, shape (n_features,)
+    coef_ : array, shape (n_clases, n_features)
         The coefficients corresponding to lambda_best_.
 
-    intercept_ : float
+    intercept_ : array, shape (n_classes,)
         The intercept corresponding to lambda_best_.
 
-    intercept_path_ : array, shape (n_lambda_,)
-        The intercept for each value of lambda in lambda_path_.
+    intercept_path_ : array, shape (n_classes, n_lambda_)
+        The set of intercepts for each value of lambda in lambda_path_.
 
     cv_mean_score_ : array, shape (n_lambda_,)
         The mean cv score for each value of lambda. This will be set by fit_cv.
@@ -198,12 +203,14 @@ class ElasticNet(BaseEstimator):
         self : object
             Returns self.
         """
-
         X, y = check_X_y(X, y, accept_sparse='csr', ensure_min_samples=2)
         if sample_weight is None:
             sample_weight = np.ones(X.shape[0])
         else:
             sample_weight = np.asarray(sample_weight)
+
+            if y.shape != sample_weight.shape:
+                raise ValueError('the shape of weights is not the same with the shape of y')
 
         if not np.isscalar(self.lower_limits):
             self.lower_limits = np.asarray(self.lower_limits)
@@ -224,14 +231,14 @@ class ElasticNet(BaseEstimator):
         if self.alpha > 1 or self.alpha < 0:
             raise ValueError("alpha must be between 0 and 1")
 
-        if self.n_splits > 0 and self.n_splits < 3:
-            raise ValueError("n_splits must be at least 3")
-
+        # fit the model
         self._fit(X, y, sample_weight, relative_penalties)
 
+        # score each model on the path of lambda values found by glmnet and
+        # select the best scoring
         if self.n_splits >= 3:
             if groups is None:
-                self._cv = KFold(n_splits=self.n_splits, shuffle=True, random_state=self.random_state)
+                self._cv = StratifiedKFold(n_splits=self.n_splits, shuffle=True, random_state=self.random_state)
             else:
                 self._cv = GroupKFold(n_splits=self.n_splits)
 
@@ -262,8 +269,7 @@ class ElasticNet(BaseEstimator):
 
         return self
 
-    def _fit(self, X, y, sample_weight, relative_penalties):
-
+    def _fit(self, X, y, sample_weight=None, relative_penalties=None):
         if self.lambda_path is not None:
             n_lambda = len(self.lambda_path)
             min_lambda_ratio = 1.0
@@ -271,12 +277,55 @@ class ElasticNet(BaseEstimator):
             n_lambda = self.n_lambda
             min_lambda_ratio = self.min_lambda_ratio
 
-        _y = y.astype(dtype=np.float64, order='F', copy=True)
-        _sample_weight = sample_weight.astype(dtype=np.float64, order='F',
-                                              copy=True)
+        check_classification_targets(y)
+        self.classes_ = np.unique(y)  # the output of np.unique is sorted
+        n_classes = len(self.classes_)
+        if n_classes < 2:
+            raise ValueError("Training data need to contain at least 2 "
+                             "classes.")
 
+        # glmnet requires the labels a one-hot-encoded array of
+        # (n_samples, n_classes)
+        if n_classes == 2:
+            # Normally we use 1/0 for the positive and negative classes. Since
+            # np.unique sorts the output, the negative class will be in the 0th
+            # column. We want a model predicting the positive class, not the
+            # negative class, so we flip the columns here (the != condition).
+            #
+            # Broadcast comparison of self.classes_ to all rows of y. See the
+            # numpy rules on broadcasting for more info, essentially this
+            # "reshapes" y to (n_samples, n_classes) and self.classes_ to
+            # (n_samples, n_classes) and performs an element-wise comparison
+            # resulting in _y with shape (n_samples, n_classes).
+            _y = (y[:, None] != self.classes_).astype(np.float64, order='F')
+        else:
+            # multinomial case, glmnet uses the entire array so we can
+            # keep the original order.
+            _y = (y[:, None] == self.classes_).astype(np.float64, order='F')
+
+        # use sample weights, making sure all weights are positive
+        # this is inspired by the R wrapper for glmnet, in lognet.R
+        if sample_weight is not None:
+            weight_gt_0 = sample_weight > 0
+            sample_weight = sample_weight[weight_gt_0]
+            _y = _y[weight_gt_0, :]
+            X = X[weight_gt_0, :]
+            _y = _y * np.expand_dims(sample_weight, 1)
+
+        # we need some sort of "offset" array for glmnet
+        # an array of shape (n_examples, n_classes)
+        offset = np.zeros((X.shape[0], n_classes), dtype=np.float64,
+                          order='F')
+
+        # You should have thought of that before you got here.
         exclude_vars = 0
 
+        # how much each feature should be penalized relative to the others
+        # this may be useful to expose to the caller if there are vars that
+        # must be included in the final model or there is some prior knowledge
+        # about how important some vars are relative to others, see the glmnet
+        # vignette:
+        # http://web.stanford.edu/~hastie/glmnet/glmnet_alpha.html
         if relative_penalties is None:
             relative_penalties = np.ones(X.shape[1], dtype=np.float64,
                                          order='F')
@@ -285,12 +334,14 @@ class ElasticNet(BaseEstimator):
         coef_bounds[0, :] = self.lower_limits
         coef_bounds[1, :] = self.upper_limits
 
-        if X.shape[1] > X.shape[0]:
-            # the glmnet docs suggest using a different algorithm for the case
-            # of p >> n
-            algo_flag = 2
-        else:
-            algo_flag = 1
+        if n_classes == 2:
+            # binomial, tell glmnet there is only one class
+            # otherwise we will get a coef matrix with two dimensions
+            # where each pair are equal in magnitude and opposite in sign
+            # also since the magnitudes are constrained to sum to one, the
+            # returned coefficients would be one half of the proper values
+            n_classes = 1
+
 
         # This is a stopping criterion (nx)
         # R defaults to nx = num_features, and ne = num_features + 1
@@ -299,6 +350,7 @@ class ElasticNet(BaseEstimator):
         else:
             max_features = self.max_features
 
+        # for documentation on the glmnet function lognet, see doc.py
         if issparse(X):
             _x = csc_matrix(X, dtype=np.float64, copy=True)
 
@@ -307,31 +359,40 @@ class ElasticNet(BaseEstimator):
              ca,
              ia,
              nin,
-             _,  # rsq
+             _,  # dev0
+             _,  # dev
              self.lambda_path_,
              _,  # nlp
-             jerr) = spelnet(algo_flag,
-                             self.alpha,
-                             _x.shape[0],
-                             _x.shape[1],
-                             _x.data,
-                             _x.indptr + 1,  # Fortran uses 1-based indexing
-                             _x.indices + 1,
-                             _y,
-                             _sample_weight,
-                             exclude_vars,
-                             relative_penalties,
-                             coef_bounds,
-                             max_features,
-                             X.shape[1] + 1,
-                             min_lambda_ratio,
-                             self.lambda_path,
-                             self.tol,
-                             n_lambda,
-                             self.standardize,
-                             self.fit_intercept,
-                             self.max_iter)
-        else:
+             jerr) = splognet(self.alpha,
+                              _x.shape[0],
+                              _x.shape[1],
+                              n_classes,
+                              _x.data,
+                              _x.indptr + 1,  # Fortran uses 1-based indexing
+                              _x.indices + 1,
+                              _y,
+                              offset,
+                              exclude_vars,
+                              relative_penalties,
+                              coef_bounds,
+                              max_features,
+                              X.shape[1] + 1,
+                              min_lambda_ratio,
+                              self.lambda_path,
+                              self.tol,
+                              n_lambda,
+                              self.standardize,
+                              self.fit_intercept,
+                              self.max_iter,
+                              0)
+        else:  # not sparse
+            # some notes: glmnet requires both x and y to be float64, the two
+            # arrays
+            # may also be overwritten during the fitting process, so they need
+            # to be copied prior to calling lognet. The fortran wrapper will
+            # copy any arrays passed to a wrapped function if they are not in
+            # the fortran layout, to avoid making extra copies, ensure x and y
+            # are `F_CONTIGUOUS` prior to calling lognet.
             _x = X.astype(dtype=np.float64, order='F', copy=True)
 
             (self.n_lambda_,
@@ -339,39 +400,50 @@ class ElasticNet(BaseEstimator):
              ca,
              ia,
              nin,
-             _,  # rsq
+             _,  # dev0
+             _,  # dev
              self.lambda_path_,
              _,  # nlp
-             jerr) = elnet(algo_flag,
-                           self.alpha,
-                           _x,
-                           _y,
-                           _sample_weight,
-                           exclude_vars,
-                           relative_penalties,
-                           coef_bounds,
-                           X.shape[1] + 1,
-                           min_lambda_ratio,
-                           self.lambda_path,
-                           self.tol,
-                           max_features,
-                           n_lambda,
-                           self.standardize,
-                           self.fit_intercept,
-                           self.max_iter)
+             jerr) = lognet(self.alpha,
+                            n_classes,
+                            _x,
+                            _y,
+                            offset,
+                            exclude_vars,
+                            relative_penalties,
+                            coef_bounds,
+                            X.shape[1] + 1,
+                            min_lambda_ratio,
+                            self.lambda_path,
+                            self.tol,
+                            max_features,
+                            n_lambda,
+                            self.standardize,
+                            self.fit_intercept,
+                            self.max_iter,
+                            0)
 
         # raises RuntimeError if self.jerr_ is nonzero
         self.jerr_ = jerr
         _check_error_flag(self.jerr_)
 
+        # glmnet may not return the requested number of lambda values, so we
+        # need to trim the trailing zeros from the returned path so
+        # len(lambda_path_) is equal to n_lambda_
         self.lambda_path_ = self.lambda_path_[:self.n_lambda_]
+        # also fix the first value of lambda
         self.lambda_path_ = _fix_lambda_path(self.lambda_path_)
-        # trim the pre-allocated arrays returned by glmnet to match the actual
-        # number of values found for lambda
-        self.intercept_path_ = self.intercept_path_[:self.n_lambda_]
-        ca = ca[:, :self.n_lambda_]
+        self.intercept_path_ = self.intercept_path_[:, :self.n_lambda_]
+        # also trim the compressed coefficient matrix
+        ca = ca[:, :, :self.n_lambda_]
+        # and trim the array of n_coef per lambda (may or may not be non-zero)
         nin = nin[:self.n_lambda_]
-        self.coef_path_ = solns(_x.shape[1], ca, ia, nin)
+        # decompress the coefficients returned by glmnet, see doc.py
+        self.coef_path_ = lsolns(X.shape[1], ca, ia, nin)
+        # coef_path_ has shape (n_features, n_classes, n_lambda), we should
+        # match shape for scikit-learn models:
+        # (n_classes, n_features, n_lambda)
+        self.coef_path_ = np.transpose(self.coef_path_, axes=(1, 0, 2))
 
         return self
 
@@ -385,17 +457,33 @@ class ElasticNet(BaseEstimator):
                                              self.coef_path_,
                                              self.intercept_path_, lamb)
 
+        # coef must be (n_classes, n_features, n_lambda)
+        if coef.ndim != 3:
+            # we must be working with an intercept only model
+            coef = coef[:, :, np.newaxis]
+        # intercept must be (n_classes, n_lambda)
+        if intercept.ndim != 2:
+            intercept = intercept[:, np.newaxis]
+
         X = check_array(X, accept_sparse='csr')
-        z = X.dot(coef) + intercept
+        # return (n_samples, n_classes, n_lambda)
+        z = np.empty((X.shape[0], coef.shape[0], coef.shape[-1]))
+        # well... sometimes we just need a for loop
+        for c in range(coef.shape[0]):  # all classes
+            for l in range(coef.shape[-1]):  # all values of lambda
+                z[:, c, l] = X.dot(coef[c, :, l])
+        z += intercept
 
-        # drop last dimension (lambda path) when we are predicting for a
-        # single value of lambda
-        if lamb.shape[0] == 1:
-            z = z.squeeze(axis=-1)
-        return z
+        # drop the last dimension (lambda) when we are predicting for a single
+        # value of lambda, and drop the middle dimension (class) when we are
+        # predicting from a binomial model (for consistency with scikit-learn)
+        return z.squeeze()
 
-    def predict(self, X, lamb=None):
-        """Predict the response Y for each sample in X
+    def predict_proba(self, X, lamb=None):
+        """Probability estimates for each class given X.
+
+        The returned estimates are in the same order as the values in
+        classes_.
 
         Parameters
         ----------
@@ -410,13 +498,54 @@ class ElasticNet(BaseEstimator):
 
         Returns
         -------
-        C : array, shape (n_samples,) or (n_samples, n_lambda)
-            Predicted response value for each sample given each value of lambda
+        T : array, shape (n_samples, n_classes) or (n_samples, n_classes, n_lambda)
         """
-        return self.decision_function(X, lamb)
+        z = self.decision_function(X, lamb)
+        expit(z, z)
+
+        # reshape z to (n_samples, n_classes, n_lambda)
+        n_lambda = len(np.atleast_1d(lamb))
+        z = z.reshape(X.shape[0], -1, n_lambda)
+
+        if z.shape[1] == 1:
+            # binomial, for consistency and to match scikit-learn, add the
+            # complement so z has shape (n_samples, 2, n_lambda)
+            z = np.concatenate((1-z, z), axis=1)
+        else:
+            # normalize for multinomial
+            z /= np.expand_dims(z.sum(axis=1), axis=1)
+
+        if n_lambda == 1:
+            z = z.squeeze(axis=-1)
+        return z
+
+    def predict(self, X, lamb=None):
+        """Predict class labels for samples in X.
+
+        Parameters
+        ----------
+        X : array, shape (n_samples, n_features)
+
+        lamb : array, shape (n_lambda,)
+            Values of lambda from lambda_path_ from which to make predictions.
+            If no values are provided for lamb, the returned predictions will
+            be those corresponding to lambda_best_. The values of lamb must
+            also be in the range of lambda_path_, values greater than
+            max(lambda_path_) or less than  min(lambda_path_) will be clipped.
+
+        Returns
+        -------
+        T : array, shape (n_samples,) or (n_samples, n_lambda)
+            Predicted class labels for each sample given each value of lambda
+        """
+
+        scores = self.predict_proba(X, lamb)
+        indices = scores.argmax(axis=1)
+
+        return self.classes_[indices]
 
     def score(self, X, y, lamb=None):
-        """Returns the coefficient of determination R^2 for each value of lambda.
+        """Returns the mean accuracy on the given test data and labels.
 
         Parameters
         ----------
@@ -424,25 +553,15 @@ class ElasticNet(BaseEstimator):
             Test samples
 
         y : array, shape (n_samples,)
-            True values for X
+            True labels for X
 
         lamb : array, shape (n_lambda,)
             Values from lambda_path_ for which to score predictions.
 
         Returns
         -------
-        scores : array, shape (n_lambda,)
-            R^2 of predictions for each lambda.
+        score : array, shape (n_lambda,)
+            Mean accuracy for each value of lambda.
         """
-
-        # pred will have shape (n_samples, n_lambda)
         pred = self.predict(X, lamb=lamb)
-
-        # Reverse the args of the r2_score function from scikit-learn. The
-        # function np.apply_along_axis passes an array as the first argument to
-        # the provided function and any extra args as the subsequent arguments.
-        def r2_reverse(y_pred, y_true):
-            return r2_score(y_true, y_pred)
-
-        # compute the score for each value of lambda
-        return np.apply_along_axis(r2_reverse, 0, pred, y)
+        return np.apply_along_axis(accuracy_score, 0, pred, y)
