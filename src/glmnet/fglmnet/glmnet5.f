@@ -6124,12 +6124,12 @@ c
       bnorm=b                                                              3399
       if(it.ge.mxit) jerr=90000                                            3400
       return                                                               3401
-      ! entry chg_bnorm(arg,irg)                                             3401
+      ! subroutine chg_bnorm(arg,irg)                                        3401
       ! chg_bnorm=0.0                                                        3401
       ! thr=arg                                                              3401
       ! mxit=irg                                                             3401
-      return                                                               3402
-      ! entry get_bnorm(arg,irg)                                             3402
+      ! return                                                               3402
+      ! subroutine get_bnorm(arg,irg)                                        3402
       ! bnorm=0.0                                                            3401
       ! arg=thr                                                              3402
       ! irg=mxit                                                             3402

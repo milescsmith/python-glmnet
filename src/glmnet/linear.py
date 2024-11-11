@@ -9,7 +9,7 @@ from sklearn.model_selection import KFold, GroupKFold
 from sklearn.utils import check_array, check_X_y
 
 from .errors import _check_error_flag
-from _glmnet import elnet, spelnet, solns
+from fglmnet import elnet, spelnet, solns
 from glmnet.util import (_fix_lambda_path,
                          _check_user_lambda,
                          _interpolate_model,

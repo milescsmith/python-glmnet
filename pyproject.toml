@@ -1,16 +1,12 @@
-[build-system]
-build-backend = "setuptools.build_meta"
-requires = [
-    "setuptools>=42", "wheel", "scikit-build", "cmake>=3.9", "numpy>=1.21"
-]
-
 [project]
-name = "python-glmnet"
-version = "2.3.0"
+name = "python_glmnet"
 description = "Python wrapper for glmnet"
 authors = [
     {name="Civis Analytics Inc", email="opensource@replicahq.com"}
 ]
+requires-python = ">=3.10"
+readme = 'README.rst'
+version = "2.4.0"
 dependencies = [
     "numpy>=1.9.2",
     "scikit-learn>=0.18.0",
@@ -18,8 +14,6 @@ dependencies = [
     "joblib>=0.14.1",
     "setuptools>=75.3.0",
 ]
-requires-python = ">=3.9"
-readme = 'README.rst'
 classifiers=[
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
@@ -36,8 +30,22 @@ classifiers=[
     "Topic :: Scientific/Engineering",
 ]
 
+[tool.pdm.dev-dependencies]
+build = [
+    "setuptools",
+    "meson-python>=0.16.0",
+    "ninja>=1.8.2"
+]
+
+[tool.pdm.options]
+install = ["--no-isolation"]
+
 [project.urls]
 homepage = "https://github.com/replicahq/python-glmnet"
 repository = "https://github.com/replicahq/python-glmnet"
 
-[tool.pdm.build]
+[build-system]
+build-backend = "mesonpy"
+requires = [
+    "meson-python>=0.16.0", "numpy>=2.1", "ninja>=1.11", "meson>=1.1"
+]
