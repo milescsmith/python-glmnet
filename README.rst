@@ -1,6 +1,9 @@
 Python GLMNET
 =============
 
+    DON'T USE THIS!
+    Odds are, if this message is still present, this module does not work as intended.  It *does* currently build, but there's something off in actually *calling* the fortran functions.
+
 |CircleCI| |PyPI| |PyVersions|
 
 .. |CircleCI| image:: https://circleci.com/gh/civisanalytics/python-glmnet.svg?style=svg
