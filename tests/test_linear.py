@@ -37,7 +37,7 @@ class TestElasticNet(unittest.TestCase):
 
     @ignore_warnings(category=RuntimeWarning)
     def test_estimator_interface(self):
-        m = ElasticNet(sample)
+        m = ElasticNet()
         estimator_checks.check_estimator(m)
 
     def test_with_defaults(self):
