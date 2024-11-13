@@ -1,5 +1,0 @@
-{
-    "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild",
-    "C_Cpp.default.compileCommands": "/home/milo/workspace/python-glmnet/builddir/compile_commands.json",
-    "cmake.sourceDirectory": "/home/milo/workspace/python-glmnet/src/glmnet/_glmnet"
-}
