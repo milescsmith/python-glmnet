@@ -4,14 +4,15 @@ from glmnet.errors import _check_error_flag
 
 
 class TestErrors(unittest.TestCase):
-
     def test_zero_jerr(self):
         # This should not raise any warnings or exceptions.
         _check_error_flag(0)
 
     def test_convergence_err(self):
-        msg = ("Model did not converge for smaller values of lambda, "
-               "returning solution for the largest 75 values.")
+        msg = (
+            "Model did not converge for smaller values of lambda, "
+            "returning solution for the largest 75 values."
+        )
         with self.assertWarns(RuntimeWarning, msg=msg):
             _check_error_flag(-76)
 
@@ -21,8 +22,10 @@ class TestErrors(unittest.TestCase):
             _check_error_flag(7777)
 
     def test_all_negative_rel_penalty(self):
-        msg = ("At least one value of relative_penalties must be positive, "
-               "(glmnet error no. 10000).")
+        msg = (
+            "At least one value of relative_penalties must be positive, "
+            "(glmnet error no. 10000)."
+        )
         with self.assertRaises(ValueError, msg=msg):
             _check_error_flag(10000)
 
@@ -55,4 +58,3 @@ class TestErrors(unittest.TestCase):
         msg = "Solver did not converge (glmnet error no. 90000)."
         with self.assertRaises(ValueError, msg=msg):
             _check_error_flag(90000)
-

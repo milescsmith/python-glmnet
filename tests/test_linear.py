@@ -7,27 +7,26 @@ from scipy.sparse import csr_matrix
 from sklearn.datasets import make_regression
 from sklearn.metrics import r2_score
 from sklearn.utils import estimator_checks
-from sklearn.utils.testing import ignore_warnings
+from sklearn.utils._testing import ignore_warnings
 
-from glmnet.tests.util import sanity_check_regression
+from .util import sanity_check_regression
 
 from glmnet import ElasticNet
 
 
 class TestElasticNet(unittest.TestCase):
-
     def setUp(self):
         np.random.seed(488881)
         x, y = make_regression(n_samples=1000, random_state=561)
         x_sparse = csr_matrix(x)
 
-        x_wide, y_wide = make_regression(n_samples=100, n_features=150,
-                                         random_state=1105)
+        x_wide, y_wide = make_regression(
+            n_samples=100, n_features=150, random_state=1105
+        )
         x_wide_sparse = csr_matrix(x_wide)
 
-        self.inputs = [(x,y), (x_sparse, y), (x_wide, y_wide),
-                       (x_wide_sparse, y_wide)]
-        self.alphas = [0., 0.25, 0.50, 0.75, 1.]
+        self.inputs = [(x, y), (x_sparse, y), (x_wide, y_wide), (x_wide_sparse, y_wide)]
+        self.alphas = [0.0, 0.25, 0.50, 0.75, 1.0]
         self.n_splits = [-1, 0, 5]
         self.scoring = [
             "r2",
@@ -38,7 +37,8 @@ class TestElasticNet(unittest.TestCase):
 
     @ignore_warnings(category=RuntimeWarning)
     def test_estimator_interface(self):
-        estimator_checks.check_estimator(ElasticNet)
+        m = ElasticNet(sample)
+        estimator_checks.check_estimator(m)
 
     def test_with_defaults(self):
         m = ElasticNet(random_state=2821)
@@ -70,7 +70,7 @@ class TestElasticNet(unittest.TestCase):
             assert p.shape == (1, 2)
 
     def test_with_single_var(self):
-        x = np.random.rand(500,1)
+        x = np.random.rand(500, 1)
         y = (1.3 * x).ravel()
 
         m = ElasticNet(random_state=449065)
@@ -107,7 +107,7 @@ class TestElasticNet(unittest.TestCase):
 
             # verify that the unpenalized coef ests exceed the penalized ones
             # in absolute value
-            assert(np.all(np.abs(m1.coef_) <= np.abs(m2.coef_)))
+            assert np.all(np.abs(m1.coef_) <= np.abs(m2.coef_))
 
     def test_alphas(self):
         x, y = self.inputs[0]
@@ -117,21 +117,25 @@ class TestElasticNet(unittest.TestCase):
             self.check_r2_score(y, m.predict(x), 0.90, alpha=alpha)
 
     def test_coef_limits(self):
-            x, y = self.inputs[0]
-            lower_limits = np.repeat(-1, x.shape[1])
-            upper_limits = 0
-            m = ElasticNet(lower_limits=lower_limits, upper_limits=upper_limits, random_state=5934, alpha=0)
-            m = m.fit(x, y)
-            assert(np.all(m.coef_ >= -1))
-            assert(np.all(m.coef_ <= 0))
+        x, y = self.inputs[0]
+        lower_limits = np.repeat(-1, x.shape[1])
+        upper_limits = 0
+        m = ElasticNet(
+            lower_limits=lower_limits,
+            upper_limits=upper_limits,
+            random_state=5934,
+            alpha=0,
+        )
+        m = m.fit(x, y)
+        assert np.all(m.coef_ >= -1)
+        assert np.all(m.coef_ <= 0)
 
     def test_n_splits(self):
         x, y = self.inputs[0]
         for n in self.n_splits:
             m = ElasticNet(n_splits=n, random_state=6601)
             if n > 0 and n < 3:
-                with self.assertRaisesRegexp(ValueError,
-                                             "n_splits must be at least 3"):
+                with self.assertRaisesRegexp(ValueError, "n_splits must be at least 3"):
                     m = m.fit(x, y)
             else:
                 m = m.fit(x, y)
@@ -188,7 +192,9 @@ class TestElasticNet(unittest.TestCase):
 
     def check_r2_score(self, y_true, y, at_least, **other_params):
         score = r2_score(y_true, y)
-        msg = "expected r2 of {}, got: {}, with: {}".format(at_least, score, other_params)
+        msg = "expected r2 of {}, got: {}, with: {}".format(
+            at_least, score, other_params
+        )
         self.assertTrue(score > at_least, msg)
 
     def test_random_state_cv(self):
@@ -206,6 +212,7 @@ class TestElasticNet(unittest.TestCase):
         m = m.fit(x, y)
         num_features = np.count_nonzero(m.coef_)
         self.assertTrue(num_features <= max_features)
+
 
 if __name__ == "__main__":
     unittest.main()
