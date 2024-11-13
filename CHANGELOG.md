@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## 2.5.0 - 2024-11-13
+
+### Changed
+* Python version support: Add 3.12 and newer versions of Numpy
+  that lack numpy.code.distutils
+* Replace Numpy-based build system with Meson
+* Remove setup.py and move all information into pyproject.toml
+* Formatting and linting using Ruff
+* Changed package layout to src-type, moved tests outside
+
 ## Unreleased
 
 ## 2.2.2 - 2024-05-09
