@@ -49,3 +49,13 @@ build-backend = "mesonpy"
 requires = [
     "meson-python>=0.16.0", "numpy>=2.1", "ninja>=1.11", "meson>=1.1"
 ]
+[dependency-groups]
+dev = [
+    "ruff>=0.7.3",
+    "pytest>=8.3.3",
+]
+build = [
+    "setuptools",
+    "meson-python>=0.16.0",
+    "ninja>=1.8.2"
+]

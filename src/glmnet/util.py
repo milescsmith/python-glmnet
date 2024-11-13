@@ -12,8 +12,9 @@ from joblib import Parallel, delayed
 from glmnet.scorer import check_scoring
 
 
-def _score_lambda_path(est, X, y, groups, sample_weight, relative_penalties,
-                       scoring, n_jobs, verbose):
+def _score_lambda_path(
+    est, X, y, groups, sample_weight, relative_penalties, scoring, n_jobs, verbose
+):
     """Score each model found by glmnet using cross validation.
 
     Parameters
@@ -60,19 +61,38 @@ def _score_lambda_path(est, X, y, groups, sample_weight, relative_penalties,
     # the scikit-learn metrics unhappy, so we are silencing these warnings.
     # Also note, catch_warnings is not thread safe.
     with warnings.catch_warnings():
-        action = 'always' if verbose else 'ignore'
+        action = "always" if verbose else "ignore"
         warnings.simplefilter(action, UndefinedMetricWarning)
 
-        scores = Parallel(n_jobs=n_jobs, verbose=verbose, backend='threading')(
-            delayed(_fit_and_score)(est, scorer, X, y, sample_weight, relative_penalties,
-                                    est.lambda_path_, train_idx, test_idx)
-            for (train_idx, test_idx) in cv_split)
+        scores = Parallel(n_jobs=n_jobs, verbose=verbose, backend="threading")(
+            delayed(_fit_and_score)(
+                est,
+                scorer,
+                X,
+                y,
+                sample_weight,
+                relative_penalties,
+                est.lambda_path_,
+                train_idx,
+                test_idx,
+            )
+            for (train_idx, test_idx) in cv_split
+        )
 
     return scores
 
 
-def _fit_and_score(est, scorer, X, y, sample_weight, relative_penalties,
-                   score_lambda_path, train_inx, test_inx):
+def _fit_and_score(
+    est,
+    scorer,
+    X,
+    y,
+    sample_weight,
+    relative_penalties,
+    score_lambda_path,
+    train_inx,
+    test_inx,
+):
     """Fit and score a single model.
 
     Parameters
@@ -113,7 +133,9 @@ def _fit_and_score(est, scorer, X, y, sample_weight, relative_penalties,
         Scores for each value of lambda for a single cv fold.
     """
     m = clone(est)
-    m = m._fit(X[train_inx, :], y[train_inx], sample_weight[train_inx], relative_penalties)
+    m = m._fit(
+        X[train_inx, :], y[train_inx], sample_weight[train_inx], relative_penalties
+    )
 
     lamb = np.clip(score_lambda_path, m.lambda_path_[-1], m.lambda_path_[0])
     return scorer(m, X[test_inx, :], y[test_inx], lamb=lamb)
@@ -156,18 +178,21 @@ def _check_user_lambda(lambda_path, lambda_best=None, lamb=None):
 
     if lamb is None:
         if lambda_best is None:
-            raise ValueError("You must specify a value for lambda or run "
-                             "with cv_folds > 1 to select a value "
-                             "automatically.")
+            raise ValueError(
+                "You must specify a value for lambda or run "
+                "with cv_folds > 1 to select a value "
+                "automatically."
+            )
         lamb = lambda_best
 
     # ensure numpy math works later
     lamb = np.array(lamb, ndmin=1)
     if np.any(lamb < lambda_path[-1]) or np.any(lamb > lambda_path[0]):
-        warnings.warn("Some values of lamb are outside the range of "
-                      "lambda_path_ [{}, {}]".format(lambda_path[-1],
-                                                     lambda_path[0]),
-                      RuntimeWarning)
+        warnings.warn(
+            "Some values of lamb are outside the range of "
+            "lambda_path_ [{}, {}]".format(lambda_path[-1], lambda_path[0]),
+            RuntimeWarning,
+        )
     np.clip(lamb, lambda_path[-1], lambda_path[0], lamb)
 
     return lamb
@@ -199,8 +224,10 @@ def _interpolate_model(lambda_path, coef_path, intercept_path, lamb):
         The interpolated path of intercepts.
     """
     if lambda_path.shape[0] == 1:
-        warnings.warn("lambda_path has a single value, this may be an "
-                      "intercept-only model.", RuntimeWarning)
+        warnings.warn(
+            "lambda_path has a single value, this may be an " "intercept-only model.",
+            RuntimeWarning,
+        )
         coef = np.take(coef_path, 0, axis=-1)
         intercept = np.take(intercept_path, 0, axis=-1)
     else:

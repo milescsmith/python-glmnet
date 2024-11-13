@@ -2,8 +2,8 @@ from setuptools import Extension, setup
 
 ext_modules = [
     Extension(
-        name="fgmlnet", 
-        sources=["src/glmnet/fglmnet/glmnet.f90"],
+        name="_gmlnet", 
+        sources=["src/glmnet/_glmnet/glmnet5.f"],
         language="fortran"
         )
     ]
@@ -16,6 +16,6 @@ def pdm_build_initialize(context):
     metadata["dependencies"].append("numpy")
     
 setup(
-    ext_package='fglmnet',
+    ext_package='_glmnet',
     ext_modules=ext_modules
 )
