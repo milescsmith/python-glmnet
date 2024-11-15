@@ -1,21 +1,23 @@
+from typing import Final
+
 import numpy as np
-
-from scipy.sparse import issparse, csc_matrix
 from scipy import stats
-
+from scipy.sparse import csc_matrix, issparse
 from sklearn.base import BaseEstimator
 from sklearn.metrics import r2_score
-from sklearn.model_selection import KFold, GroupKFold
+from sklearn.model_selection import GroupKFold, KFold
 from sklearn.utils import check_array, check_X_y
 
-from .errors import _check_error_flag
-from ._glmnet import elnet, spelnet, solns
+from glmnet._glmnet import elnet, solns, spelnet
+from glmnet.errors import _check_error_flag
 from glmnet.util import (
-    _fix_lambda_path,
     _check_user_lambda,
+    _fix_lambda_path,
     _interpolate_model,
     _score_lambda_path,
 )
+
+THERE_ARE_AT_LEAST_THREE_SPLITS: Final[int] = 3
 
 
 class ElasticNet(BaseEstimator):
@@ -224,40 +226,36 @@ class ElasticNet(BaseEstimator):
         if not np.isscalar(self.lower_limits):
             self.lower_limits = np.asarray(self.lower_limits)
             if len(self.lower_limits) != X.shape[1]:
-                raise ValueError("lower_limits must equal number of features")
+                msg = "lower_limits must equal number of features"
+                raise ValueError(msg)
 
         if not np.isscalar(self.upper_limits):
             self.upper_limits = np.asarray(self.upper_limits)
             if len(self.upper_limits) != X.shape[1]:
-                raise ValueError("upper_limits must equal number of features")
+                msg = "upper_limits must equal number of features"
+                raise ValueError(msg)
 
-        if (
-            any(self.lower_limits > 0)
-            if isinstance(self.lower_limits, np.ndarray)
-            else self.lower_limits > 0
-        ):
-            raise ValueError("lower_limits must be non-positive")
+        if any(self.lower_limits > 0) if isinstance(self.lower_limits, np.ndarray) else self.lower_limits > 0:
+            msg = "lower_limits must be non-positive"
+            raise ValueError(msg)
 
-        if (
-            any(self.upper_limits < 0)
-            if isinstance(self.upper_limits, np.ndarray)
-            else self.upper_limits < 0
-        ):
-            raise ValueError("upper_limits must be positive")
+        if any(self.upper_limits < 0) if isinstance(self.upper_limits, np.ndarray) else self.upper_limits < 0:
+            msg = "upper_limits must be positive"
+            raise ValueError(msg)
 
         if self.alpha > 1 or self.alpha < 0:
-            raise ValueError("alpha must be between 0 and 1")
+            msg = "alpha must be between 0 and 1"
+            raise ValueError(msg)
 
-        if self.n_splits > 0 and self.n_splits < 3:
-            raise ValueError("n_splits must be at least 3")
+        if self.n_splits > 0 and self.n_splits < THERE_ARE_AT_LEAST_THREE_SPLITS:
+            msg = "n_splits must be at least 3"
+            raise ValueError(msg)
 
         self._fit(X, y, sample_weight, relative_penalties)
 
-        if self.n_splits >= 3:
+        if self.n_splits >= THERE_ARE_AT_LEAST_THREE_SPLITS:
             if groups is None:
-                self._cv = KFold(
-                    n_splits=self.n_splits, shuffle=True, random_state=self.random_state
-                )
+                self._cv = KFold(n_splits=self.n_splits, shuffle=True, random_state=self.random_state)
             else:
                 self._cv = GroupKFold(n_splits=self.n_splits)
 
@@ -315,20 +313,10 @@ class ElasticNet(BaseEstimator):
         coef_bounds[0, :] = self.lower_limits
         coef_bounds[1, :] = self.upper_limits
 
-        if X.shape[1] > X.shape[0]:
-            # the glmnet docs suggest using a different algorithm for the case
-            # of p >> n
-            algo_flag = 2
-        else:
-            algo_flag = 1
-
+        algo_flag = 2 if X.shape[1] > X.shape[0] else 1
         # This is a stopping criterion (nx)
         # R defaults to nx = num_features, and ne = num_features + 1
-        if self.max_features is None:
-            max_features = X.shape[1]
-        else:
-            max_features = self.max_features
-
+        max_features = X.shape[1] if self.max_features is None else self.max_features
         if issparse(X):
             _x = csc_matrix(X, dtype=np.float64, copy=True)
 
@@ -413,14 +401,9 @@ class ElasticNet(BaseEstimator):
         return self
 
     def decision_function(self, X, lamb=None):
-        lambda_best = None
-        if hasattr(self, "lambda_best_"):
-            lambda_best = self.lambda_best_
-
+        lambda_best = self.lambda_best_ if hasattr(self, "lambda_best_") else None
         lamb = _check_user_lambda(self.lambda_path_, lambda_best, lamb)
-        coef, intercept = _interpolate_model(
-            self.lambda_path_, self.coef_path_, self.intercept_path_, lamb
-        )
+        coef, intercept = _interpolate_model(self.lambda_path_, self.coef_path_, self.intercept_path_, lamb)
 
         X = check_array(X, accept_sparse="csr")
         z = X.dot(coef) + intercept

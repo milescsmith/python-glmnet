@@ -140,7 +140,7 @@ inc_np = include_directories(incdir_numpy)
 incdir_f2py = run_command(py3,
   [
   '-c',
-  'import os; import numpy as np; incdir = os.path.relpath(np.f2py.get_include()); print(incdir)',
+  'import os; from numpy import f2py; incdir = os.path.relpath(f2py.get_include()); print(incdir)',
   ],
   check: true
 ).stdout().strip()

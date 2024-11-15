@@ -15,19 +15,18 @@ from abc import ABCMeta, abstractmethod
 from functools import partial
 
 import numpy as np
-
 from sklearn.metrics import (
-    r2_score,
-    median_absolute_error,
+    accuracy_score,
+    average_precision_score,
+    f1_score,
+    log_loss,
     mean_absolute_error,
     mean_squared_error,
-    accuracy_score,
-    f1_score,
-    roc_auc_score,
-    average_precision_score,
+    median_absolute_error,
     precision_score,
+    r2_score,
     recall_score,
-    log_loss,
+    roc_auc_score,
 )
 from sklearn.utils.multiclass import type_of_target
 
@@ -43,15 +42,8 @@ class _BaseScorer(metaclass=ABCMeta):
         pass
 
     def __repr__(self):
-        kwargs_string = "".join(
-            [", %s=%s" % (str(k), str(v)) for k, v in self._kwargs.items()]
-        )
-        return "make_scorer(%s%s%s%s)" % (
-            self._score_func.__name__,
-            "" if self._sign > 0 else ", greater_is_better=False",
-            self._factory_args(),
-            kwargs_string,
-        )
+        kwargs_string = "".join([f", {k!s}={v!s}" for k, v in self._kwargs.items()])
+        return f"make_scorer({self._score_func.__name__}{'' if self._sign > 0 else ', greater_is_better=False'}{self._factory_args()}{kwargs_string})"
 
     def _factory_args(self):
         """Return non-default make_scorer arguments for repr."""
@@ -89,16 +81,12 @@ class _PredictScorer(_BaseScorer):
         y_pred = estimator.predict(X, lamb=lamb)
         if sample_weight is not None:
             scores = np.apply_along_axis(
-                lambda y_hat: self._score_func(
-                    y_true, y_hat, sample_weight=sample_weight, **self._kwargs
-                ),
+                lambda y_hat: self._score_func(y_true, y_hat, sample_weight=sample_weight, **self._kwargs),
                 0,
                 y_pred,
             )
         else:
-            scores = np.apply_along_axis(
-                lambda y_hat: self._score_func(y_true, y_hat, **self._kwargs), 0, y_pred
-            )
+            scores = np.apply_along_axis(lambda y_hat: self._score_func(y_true, y_hat, **self._kwargs), 0, y_pred)
         return self._sign * scores
 
 
@@ -130,14 +118,14 @@ class _ProbaScorer(_BaseScorer):
         score : array, shape (n_lambda,)
             Score function applied to prediction of estimator on X.
         """
-        y_pred = clf.predict_proba(
-            X, lamb=lamb
-        )  # y_pred shape (n_samples, n_classes, n_lambda)
+        y_pred = clf.predict_proba(X, lamb=lamb)  # y_pred shape (n_samples, n_classes, n_lambda)
 
         if sample_weight is not None:
+
             def score_func(y_hat):
                 return self._score_func(y_true, y_hat, sample_weight=sample_weight, **self._kwargs)
         else:
+
             def score_func(y_hat):
                 return self._score_func(y_true, y_hat, **self._kwargs)
 
@@ -183,21 +171,18 @@ class _ThresholdScorer(_BaseScorer):
         """
         y_type = type_of_target(y_true)
         if y_type not in ("binary", "multilabel-indicator"):
-            raise ValueError("{0} format is not supported".format(y_type))
+            msg = f"{y_type} format is not supported"
+            raise ValueError(msg)
 
         y_pred = clf.decision_function(X, lamb=lamb)
         if sample_weight is not None:
             scores = np.apply_along_axis(
-                lambda y_hat: self._score_func(
-                    y_true, y_hat, sample_weight=sample_weight, **self._kwargs
-                ),
+                lambda y_hat: self._score_func(y_true, y_hat, sample_weight=sample_weight, **self._kwargs),
                 0,
                 y_pred,
             )
         else:
-            scores = np.apply_along_axis(
-                lambda y_hat: self._score_func(y_true, y_hat, **self._kwargs), 0, y_pred
-            )
+            scores = np.apply_along_axis(lambda y_hat: self._score_func(y_true, y_hat, **self._kwargs), 0, y_pred)
         return self._sign * scores
 
     def _factory_args(self):
@@ -208,11 +193,9 @@ def get_scorer(scoring):
     if isinstance(scoring, str):
         try:
             scorer = SCORERS[scoring]
-        except KeyError:
-            raise ValueError(
-                "%r is not a valid scoring value. "
-                "Valid options are %s" % (scoring, sorted(SCORERS.keys()))
-            )
+        except KeyError as e:
+            msg = f"{scoring} is not a valid scoring value. Valid options are {sorted(SCORERS.keys())!s}"
+            raise ValueError(msg) from e
     else:
         scorer = scoring
     return scorer
@@ -250,10 +233,8 @@ def check_scoring(estimator, scoring=None, allow_none=False):
     """
     has_scoring = scoring is not None
     if not hasattr(estimator, "fit"):
-        raise TypeError(
-            "estimator should a be an estimator implementing "
-            "'fit' method, %r was passed" % estimator
-        )
+        msg = "estimator should a be an estimator implementing 'fit' method, {estimator!r} was passed"
+        raise TypeError(msg)
     elif has_scoring:
         return get_scorer(scoring)
     elif hasattr(estimator, "score"):
@@ -261,10 +242,8 @@ def check_scoring(estimator, scoring=None, allow_none=False):
     elif allow_none:
         return None
     else:
-        raise TypeError(
-            "If no scoring is specified, the estimator passed should "
-            "have a 'score' method. The estimator %r does not." % estimator
-        )
+        msg = "If no scoring is specified, the estimator passed should have a 'score' method. The estimator {estimator!r} does not."
+        raise TypeError(msg)
 
 
 def make_scorer(
@@ -327,9 +306,8 @@ def make_scorer(
     """
     sign = 1 if greater_is_better else -1
     if needs_proba and needs_threshold:
-        raise ValueError(
-            "Set either needs_proba or needs_threshold to True," " but not both."
-        )
+        msg = "Set either needs_proba or needs_threshold to True, but not both."
+        raise ValueError(msg)
     if needs_proba:
         cls = _ProbaScorer
     elif needs_threshold:
@@ -343,18 +321,14 @@ def make_scorer(
 r2_scorer = make_scorer(r2_score)
 mean_squared_error_scorer = make_scorer(mean_squared_error, greater_is_better=False)
 mean_absolute_error_scorer = make_scorer(mean_absolute_error, greater_is_better=False)
-median_absolute_error_scorer = make_scorer(
-    median_absolute_error, greater_is_better=False
-)
+median_absolute_error_scorer = make_scorer(median_absolute_error, greater_is_better=False)
 
 # Standard Classification Scores
 accuracy_scorer = make_scorer(accuracy_score)
 f1_scorer = make_scorer(f1_score)
 
 # Score functions that need decision values
-roc_auc_scorer = make_scorer(
-    roc_auc_score, greater_is_better=True, needs_threshold=True
-)
+roc_auc_scorer = make_scorer(roc_auc_score, greater_is_better=True, needs_threshold=True)
 average_precision_scorer = make_scorer(average_precision_score, needs_threshold=True)
 precision_scorer = make_scorer(precision_score)
 recall_scorer = make_scorer(recall_score)
@@ -362,16 +336,16 @@ recall_scorer = make_scorer(recall_score)
 # Score function for probabilistic classification
 log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
 
-SCORERS = dict(
-    r2=r2_scorer,
-    median_absolute_error=median_absolute_error_scorer,
-    mean_absolute_error=mean_absolute_error_scorer,
-    mean_squared_error=mean_squared_error_scorer,
-    accuracy=accuracy_scorer,
-    roc_auc=roc_auc_scorer,
-    average_precision=average_precision_scorer,
-    log_loss=log_loss_scorer,
-)
+SCORERS = {
+    "r2": r2_scorer,
+    "median_absolute_error": median_absolute_error_scorer,
+    "mean_absolute_error": mean_absolute_error_scorer,
+    "mean_squared_error": mean_squared_error_scorer,
+    "accuracy": accuracy_scorer,
+    "roc_auc": roc_auc_scorer,
+    "average_precision": average_precision_scorer,
+    "log_loss": log_loss_scorer,
+}
 
 for name, metric in [
     ("precision", precision_score),
@@ -380,7 +354,5 @@ for name, metric in [
 ]:
     SCORERS[name] = make_scorer(metric)
     for average in ["macro", "micro", "samples", "weighted"]:
-        qualified_name = "{0}_{1}".format(name, average)
-        SCORERS[qualified_name] = make_scorer(
-            partial(metric, pos_label=None, average=average)
-        )
+        qualified_name = f"{name}_{average}"
+        SCORERS[qualified_name] = make_scorer(partial(metric, pos_label=None, average=average))

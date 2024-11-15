@@ -2,19 +2,15 @@ import math
 import warnings
 
 import numpy as np
-
+from joblib import Parallel, delayed
 from scipy.interpolate import interp1d
-
 from sklearn.base import clone
 from sklearn.exceptions import UndefinedMetricWarning
-from joblib import Parallel, delayed
 
 from glmnet.scorer import check_scoring
 
 
-def _score_lambda_path(
-    est, X, y, groups, sample_weight, relative_penalties, scoring, n_jobs, verbose
-):
+def _score_lambda_path(est, X, y, groups, sample_weight, relative_penalties, scoring, n_jobs, verbose):
     """Score each model found by glmnet using cross validation.
 
     Parameters
@@ -133,18 +129,19 @@ def _fit_and_score(
         Scores for each value of lambda for a single cv fold.
     """
     m = clone(est)
-    m = m._fit(
-        X[train_inx, :], y[train_inx], sample_weight[train_inx], relative_penalties
-    )
+    m = m._fit(X[train_inx, :], y[train_inx], sample_weight[train_inx], relative_penalties)
 
     lamb = np.clip(score_lambda_path, m.lambda_path_[-1], m.lambda_path_[0])
     return scorer(m, X[test_inx, :], y[test_inx], lamb=lamb)
 
 
+MAX_LAMBDA_PATH_DIMS = 2
+
+
 def _fix_lambda_path(lambda_path):
     """Replace the first value in lambda_path (+inf) with something more
     reasonable. The method below matches what is done in the R/glmnent wrapper."""
-    if lambda_path.shape[0] > 2:
+    if lambda_path.shape[0] > MAX_LAMBDA_PATH_DIMS:
         lambda_0 = math.exp(2 * math.log(lambda_path[1]) - math.log(lambda_path[2]))
         lambda_path[0] = lambda_0
     return lambda_path
@@ -178,20 +175,17 @@ def _check_user_lambda(lambda_path, lambda_best=None, lamb=None):
 
     if lamb is None:
         if lambda_best is None:
-            raise ValueError(
-                "You must specify a value for lambda or run "
-                "with cv_folds > 1 to select a value "
-                "automatically."
-            )
+            msg = "You must specify a value for lambda or run with cv_folds > 1 to select a value automatically."
+            raise ValueError(msg)
         lamb = lambda_best
 
     # ensure numpy math works later
-    lamb = np.array(lamb, ndmin=1)
+    lamb = np.array(lamb, ndmin=1, dtype=lambda_path.dtype)
     if np.any(lamb < lambda_path[-1]) or np.any(lamb > lambda_path[0]):
         warnings.warn(
-            "Some values of lamb are outside the range of "
-            "lambda_path_ [{}, {}]".format(lambda_path[-1], lambda_path[0]),
+            f"Some values of lamb are outside the range of lambda_path_ [{lambda_path[-1]}, {lambda_path[0]}]",
             RuntimeWarning,
+            stacklevel=1,
         )
     np.clip(lamb, lambda_path[-1], lambda_path[0], lamb)
 
@@ -225,8 +219,7 @@ def _interpolate_model(lambda_path, coef_path, intercept_path, lamb):
     """
     if lambda_path.shape[0] == 1:
         warnings.warn(
-            "lambda_path has a single value, this may be an " "intercept-only model.",
-            RuntimeWarning,
+            "lambda_path has a single value, this may be an " "intercept-only model.", RuntimeWarning, stacklevel=1
         )
         coef = np.take(coef_path, 0, axis=-1)
         intercept = np.take(intercept_path, 0, axis=-1)

@@ -2,10 +2,18 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## 2.6.0 - 2024-XX-XX
+### Changed
+* In root `meson.build`, replace `import numpy` and `numpy.f2py.get_include()` to 
+  `from numpy import f2py` and `f2py.get_include()` to allow numpy < 2.0 to work
+* Replacing unittest-style tests with pytest-style
+* Add Nox
+* Formatting and linting using Ruff
+
 ## 2.5.0 - 2024-11-13
 
 ### Changed
-* Python version support: Add 3.12 and newer versions of Numpy
+* Python version support: Allow 3.12 and newer versions of numpy
   that lack numpy.code.distutils
 * Replace Numpy-based build system with Meson
 * Remove setup.py and move all information into pyproject.toml

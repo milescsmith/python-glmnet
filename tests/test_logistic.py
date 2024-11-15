@@ -2,17 +2,15 @@ import itertools
 import unittest
 
 import numpy as np
-
 from scipy.sparse import csr_matrix
-
 from sklearn.datasets import make_classification
 from sklearn.metrics import accuracy_score, f1_score
-from sklearn.utils import estimator_checks, class_weight
+from sklearn.utils import class_weight, estimator_checks
 from sklearn.utils._testing import ignore_warnings
 
-from .util import sanity_check_logistic
-
 from glmnet import LogitNet
+
+from .util import sanity_check_logistic
 
 
 class TestLogitNet(unittest.TestCase):
@@ -22,9 +20,7 @@ class TestLogitNet(unittest.TestCase):
         x, y = make_classification(n_samples=300, random_state=6601)
         x_sparse = csr_matrix(x)
 
-        x_wide, y_wide = make_classification(
-            n_samples=100, n_features=150, random_state=8911
-        )
+        x_wide, y_wide = make_classification(n_samples=100, n_features=150, random_state=8911)
         x_wide_sparse = csr_matrix(x_wide)
         self.binomial = [
             (x, y),
@@ -183,7 +179,7 @@ class TestLogitNet(unittest.TestCase):
         for n in self.n_splits:
             m = LogitNet(n_splits=n, random_state=46657)
             if n > 0 and n < 3:
-                with self.assertRaisesRegexp(ValueError, "n_splits must be at least 3"):
+                with self.assertRaisesRegex(ValueError, "n_splits must be at least 3"):
                     m = m.fit(x, y)
             else:
                 m = m.fit(x, y)
@@ -255,9 +251,7 @@ class TestLogitNet(unittest.TestCase):
         with self.assertRaises(ValueError) as e:
             m.fit(x, y)
 
-        self.assertEqual(
-            "Training data need to contain at least 2 classes.", str(e.exception)
-        )
+        self.assertEqual("Training data need to contain at least 2 classes.", str(e.exception))
 
     def test_random_state_cv(self):
         random_state = 133
@@ -288,24 +282,18 @@ class TestLogitNet(unittest.TestCase):
 
         unweighted = LogitNet(random_state=2, scoring="f1_micro")
         unweighted = unweighted.fit(x, y)
-        unweighted_acc = f1_score(
-            y, unweighted.predict(x), sample_weight=sample_weight, average="micro"
-        )
+        unweighted_acc = f1_score(y, unweighted.predict(x), sample_weight=sample_weight, average="micro")
 
         weighted = LogitNet(random_state=2, scoring="f1_micro")
         weighted = weighted.fit(x, y, sample_weight=sample_weight)
-        weighted_acc = f1_score(
-            y, weighted.predict(x), sample_weight=sample_weight, average="micro"
-        )
+        weighted_acc = f1_score(y, weighted.predict(x), sample_weight=sample_weight, average="micro")
 
         self.assertTrue(weighted_acc >= unweighted_acc)
 
 
 def check_accuracy(y, y_hat, at_least, **other_params):
     score = accuracy_score(y, y_hat)
-    msg = "expected accuracy of {}, got: {} with {}".format(
-        at_least, score, other_params
-    )
+    msg = f"expected accuracy of {at_least}, got: {score} with {other_params}"
     assert score > at_least, msg
 
 

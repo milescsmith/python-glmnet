@@ -1,23 +1,29 @@
+from typing import Final
+
 import numpy as np
-
-from scipy.special import expit
-from scipy.sparse import issparse, csc_matrix
 from scipy import stats
-
+from scipy.sparse import csc_matrix, issparse
+from scipy.special import expit
 from sklearn.base import BaseEstimator
 from sklearn.metrics import accuracy_score
-from sklearn.model_selection import StratifiedKFold, GroupKFold
+from sklearn.model_selection import GroupKFold, StratifiedKFold
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.multiclass import check_classification_targets
 
-from .errors import _check_error_flag
-from glmnet._glmnet import lognet, splognet, lsolns
+from glmnet._glmnet import lognet, lsolns, splognet
 from glmnet.util import (
-    _fix_lambda_path,
     _check_user_lambda,
+    _fix_lambda_path,
     _interpolate_model,
     _score_lambda_path,
 )
+
+from .errors import _check_error_flag
+
+CORRECT_NUMBER_OF_INTERCEPT_DIMS: Final[int] = 2
+CORRECT_NUMBER_OF_COEF_DIMS: Final[int] = 3
+THERE_ARE_AT_LEAST_THREE_SPLITS: Final[int] = 3
+THERE_ARE_TWO_CLASSES: Final[int] = 2
 
 
 class LogitNet(BaseEstimator):
@@ -226,47 +232,41 @@ class LogitNet(BaseEstimator):
             sample_weight = np.asarray(sample_weight)
 
             if y.shape != sample_weight.shape:
-                raise ValueError(
-                    "the shape of weights is not the same with the shape of y"
-                )
+                msg = "the shape of weights is not the same with the shape of y"
+                raise ValueError(msg)
 
         if not np.isscalar(self.lower_limits):
             self.lower_limits = np.asarray(self.lower_limits)
             if len(self.lower_limits) != X.shape[1]:
-                raise ValueError("lower_limits must equal number of features")
+                msg = "lower_limits must equal number of features"
+                raise ValueError(msg)
 
         if not np.isscalar(self.upper_limits):
             self.upper_limits = np.asarray(self.upper_limits)
             if len(self.upper_limits) != X.shape[1]:
-                raise ValueError("upper_limits must equal number of features")
+                msg = "upper_limits must equal number of features"
+                raise ValueError(msg)
 
-        if (
-            any(self.lower_limits > 0)
-            if isinstance(self.lower_limits, np.ndarray)
-            else self.lower_limits > 0
-        ):
-            raise ValueError("lower_limits must be non-positive")
+        if any(self.lower_limits > 0) if isinstance(self.lower_limits, np.ndarray) else self.lower_limits > 0:
+            msg = "lower_limits must be non-positive"
+            raise ValueError(msg)
 
-        if (
-            any(self.upper_limits < 0)
-            if isinstance(self.upper_limits, np.ndarray)
-            else self.upper_limits < 0
-        ):
-            raise ValueError("upper_limits must be positive")
+        if any(self.upper_limits < 0) if isinstance(self.upper_limits, np.ndarray) else self.upper_limits < 0:
+            msg = "upper_limits must be positive"
+            raise ValueError(msg)
 
         if self.alpha > 1 or self.alpha < 0:
-            raise ValueError("alpha must be between 0 and 1")
+            msg = "alpha must be between 0 and 1"
+            raise ValueError(msg)
 
         # fit the model
         self._fit(X, y, sample_weight, relative_penalties)
 
         # score each model on the path of lambda values found by glmnet and
         # select the best scoring
-        if self.n_splits >= 3:
+        if self.n_splits >= THERE_ARE_AT_LEAST_THREE_SPLITS:
             if groups is None:
-                self._cv = StratifiedKFold(
-                    n_splits=self.n_splits, shuffle=True, random_state=self.random_state
-                )
+                self._cv = StratifiedKFold(n_splits=self.n_splits, shuffle=True, random_state=self.random_state)
             else:
                 self._cv = GroupKFold(n_splits=self.n_splits)
 
@@ -315,12 +315,13 @@ class LogitNet(BaseEstimator):
         check_classification_targets(y)
         self.classes_ = np.unique(y)  # the output of np.unique is sorted
         n_classes = len(self.classes_)
-        if n_classes < 2:
-            raise ValueError("Training data need to contain at least 2 " "classes.")
+        if n_classes < THERE_ARE_TWO_CLASSES:
+            msg = "Training data need to contain at least 2 classes."
+            raise ValueError(msg)
 
         # glmnet requires the labels a one-hot-encoded array of
         # (n_samples, n_classes)
-        if n_classes == 2:
+        if n_classes == THERE_ARE_TWO_CLASSES:
             # Normally we use 1/0 for the positive and negative classes. Since
             # np.unique sorts the output, the negative class will be in the 0th
             # column. We want a model predicting the positive class, not the
@@ -366,7 +367,7 @@ class LogitNet(BaseEstimator):
         coef_bounds[0, :] = self.lower_limits
         coef_bounds[1, :] = self.upper_limits
 
-        if n_classes == 2:
+        if n_classes == THERE_ARE_TWO_CLASSES:
             # binomial, tell glmnet there is only one class
             # otherwise we will get a coef matrix with two dimensions
             # where each pair are equal in magnitude and opposite in sign
@@ -376,11 +377,7 @@ class LogitNet(BaseEstimator):
 
         # This is a stopping criterion (nx)
         # R defaults to nx = num_features, and ne = num_features + 1
-        if self.max_features is None:
-            max_features = X.shape[1]
-        else:
-            max_features = self.max_features
-
+        max_features = X.shape[1] if self.max_features is None else self.max_features
         # for documentation on the glmnet function lognet, see doc.py
         if issparse(X):
             _x = csc_matrix(X, dtype=np.float64, copy=True)
@@ -487,21 +484,16 @@ class LogitNet(BaseEstimator):
         return self
 
     def decision_function(self, X, lamb=None):
-        lambda_best = None
-        if hasattr(self, "lambda_best_"):
-            lambda_best = self.lambda_best_
-
+        lambda_best = self.lambda_best_ if hasattr(self, "lambda_best_") else None
         lamb = _check_user_lambda(self.lambda_path_, lambda_best, lamb)
-        coef, intercept = _interpolate_model(
-            self.lambda_path_, self.coef_path_, self.intercept_path_, lamb
-        )
+        coef, intercept = _interpolate_model(self.lambda_path_, self.coef_path_, self.intercept_path_, lamb)
 
         # coef must be (n_classes, n_features, n_lambda)
-        if coef.ndim != 3:
+        if coef.ndim != CORRECT_NUMBER_OF_COEF_DIMS:
             # we must be working with an intercept only model
             coef = coef[:, :, np.newaxis]
         # intercept must be (n_classes, n_lambda)
-        if intercept.ndim != 2:
+        if intercept.ndim != CORRECT_NUMBER_OF_INTERCEPT_DIMS:
             intercept = intercept[:, np.newaxis]
 
         X = check_array(X, accept_sparse="csr")

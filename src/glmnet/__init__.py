@@ -1,7 +1,7 @@
 import importlib.metadata
 
-from .logistic import LogitNet
 from .linear import ElasticNet
+from .logistic import LogitNet
 
 __all__ = ["LogitNet", "ElasticNet"]
 
