@@ -2,13 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## 2.6.0 - 2024-XX-XX
+## 2.6.0 - 2024-11-16
 ### Changed
 * In root `meson.build`, replace `import numpy` and `numpy.f2py.get_include()` to 
   `from numpy import f2py` and `f2py.get_include()` to allow numpy < 2.0 to work
-* Replacing unittest-style tests with pytest-style
+* Rewrote unittest-style tests as pytest-style tests
 * Add Nox
 * Formatting and linting using Ruff
+* Revert usage of structural pattern matching so earlier versions of python work
 
 ## 2.5.0 - 2024-11-13
 

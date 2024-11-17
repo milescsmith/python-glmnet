@@ -20,18 +20,26 @@ locations = (
     "tests",
 )
 
+
 @nox.session(python=LATEST_VERSION, reuse_venv=True)
-def lint(session: nox.session) -> None:
+def lockfile(session) -> None:
+    """Run the test suite."""
+    session.run_always("pdm", "lock", external=True)
+
+
+@nox.session(python=LATEST_VERSION)
+def lint(session) -> None:
     """Lint using ruff."""
     args = session.posargs or locations
-    session.install("ruff")
-    session.run("ruff", *args)
+    session.run("uv", "pip", "install", "ruff")
+    session.run("ruff", "check", "--fix", *args)
+    session.run("ruff", "format", *args)
 
 
 @nox.session(python=LATEST_VERSION, reuse_venv=True)
-def mypy(session: nox.Session) -> None:
+def mypy(session) -> None:
     """Type-check using mypy."""
-    session.run_always("pdm", "install", "--no-self", "--no-default", "--dev", external=True)
+    session.run("pdm", "install", "--no-self", "--no-default", "--dev", external=True)
     session.run(
         "mypy",
         "--install-types",
@@ -42,26 +50,23 @@ def mypy(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=LATEST_VERSION, reuse_venv=True)
-def lockfile(session: nox.Session) -> None:
+@nox.session(python=PYTHON_VERSIONS, reuse_venv=True) #PYTHON_VERSIONS
+def tests(session) -> None:
     """Run the test suite."""
-    session.run_always("pdm", "lock", external=True)
-
-
-@nox.session(python=PYTHON_VERSIONS, reuse_venv=False) #PYTHON_VERSIONS
-def tests(session: nox.Session) -> None:
-    """Run the test suite."""
-    session.run_always("pdm", "install", "--fail-fast", "--frozen-lockfile", "--dev", external=True)
+    session.run("uv", "pip", "install", "meson-python", "ninja", "setuptools", "numpy", "coverage[toml]", "pytest")
+    session.run_always("pdm", "install", "--fail-fast", "--no-editable", "--frozen-lockfile", "--with", "dev", external=True)
     session.run(
-        "coverage", "run", "--parallel", "-m", "pytest", "--numprocesses", "auto", "--random-order", external=True
+        # running in parallel doesn't work I think because of not setting a seed
+        # "coverage", "run", "--parallel", "-m", "pytest", "--numprocesses", "auto", "--random-order", external=True
+        "coverage", "run", "-m", "pytest", external=True
     )
 
 
 @nox.session(python=LATEST_VERSION, reuse_venv=True)
-def coverage(session: nox.Session) -> None:
+def coverage(session) -> None:
     """Produce the coverage report."""
     args = session.posargs or ["report"]
-    session.install("coverage[toml]", "codecov", external=True)
+    session.run("uv", "pip", "install", "coverage[toml]", "codecov", external=True)
 
     if not session.posargs and any(Path().glob(".coverage.*")):
         session.run("coverage", "combine")

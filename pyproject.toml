@@ -6,7 +6,7 @@ authors = [
 ]
 requires-python = ">=3.10"
 readme = 'README.rst'
-version = "2.5.0"
+version = "2.6.0"
 dependencies = [
     "numpy==1.26.4",
     "scikit-learn>=1.4.0",
@@ -30,16 +30,6 @@ classifiers=[
     "Topic :: Scientific/Engineering",
 ]
 
-[tool.pdm.dev-dependencies]
-build = [
-    "setuptools",
-    "meson-python>=0.16.0",
-    "ninja>=1.8.2"
-]
-
-[tool.pdm.options]
-install = ["--no-isolation"]
-
 [project.urls]
 homepage = "https://github.com/replicahq/python-glmnet"
 repository = "https://github.com/replicahq/python-glmnet"
@@ -49,15 +39,50 @@ build-backend = "mesonpy"
 requires = [
     "meson-python>=0.16.0", "numpy>=2.1", "ninja>=1.11", "meson>=1.1"
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["glmnet"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 100
+
+[tool.pytest.ini_options]
+pythonpath = "."
+addopts = [
+    "--import-mode=importlib",
+]
+filterwarnings = [
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning:.*(jupyter_client).*",
+]
+
+
+[tool.pdm]
+
+[tool.pdm.options]
+install = ["--no-isolation"]
+
+[tool.pdm.scripts]
+format = "ruff format src/"
+lint = "ruff check --fix src/"
+test = "nox"
+all = {composite = ["format", "lint", "test"]}
+
+[tool.pdm.build]
+includes = []
+
 [dependency-groups]
 dev = [
+    "coverage[toml]>=7.6.7",
+    "setuptools",
+    "meson-python>=0.16.0",
+    "ninja>=1.8.2",
     "ruff>=0.7.3",
     "pytest>=8.3.3",
-    "nox>=2024.10.9",
+    "nox[uv]>=2024.10.9",
     "pytest-lazy-fixtures>=1.1.1",
-]
-build = [
-    "setuptools>=75.0.0",
-    "meson-python>=0.16.0",
-    "ninja>=1.8.2"
+    "pytest-randomly>=3.16.0",
+    "pytest-xdist[psutil]>=3.6.1",
 ]

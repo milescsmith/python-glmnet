@@ -1,3 +1,6 @@
+# what is the point of this?
+# Pandas isn't required nor is it an
+# optional dependency.
 from importlib.util import find_spec
 
 import pytest
@@ -18,11 +21,10 @@ def logit_net_model():
     return LogitNet(n_splits=3, random_state=123)
 
 
-@pytest.mark.skipif(
-    not find_spec("pandas"), reason="Pandas is required"
-)
+@pytest.mark.skipif(not find_spec("pandas"), reason="Pandas is required")
 def test_elasticnet_pandas(elastic_net_model):
     import pandas as pd
+
     x, y = make_regression(random_state=561)
     df = pd.DataFrame(x)
     df["y"] = y
@@ -31,8 +33,10 @@ def test_elasticnet_pandas(elastic_net_model):
     sanity_check_regression(elastic_net_model, x)
 
 
+@pytest.mark.skipif(not find_spec("pandas"), reason="Pandas is required")
 def test_logitnet_pandas(logit_net_model):
     import pandas as pd
+
     x, y = make_classification(random_state=1105)
     df = pd.DataFrame(x)
     df["y"] = y

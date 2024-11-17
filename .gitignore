@@ -166,3 +166,5 @@ cython_debug/
 **/*.Rproj
 .DS_Store
 **/*.ipynb
+**/.vscode
+**/builddir
