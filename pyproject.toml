@@ -6,11 +6,11 @@ authors = [
 ]
 requires-python = ">=3.10"
 readme = 'README.rst'
-version = "2.6.0"
+version = "2.6.1"
 dependencies = [
-    "numpy==1.26.4",
+    "numpy>=1.26.4",
     "scikit-learn>=1.4.0",
-    "scipy>=1.13.1",
+    "scipy>=1.12.0",
     "joblib>=1.3.0",
     "setuptools>=75.3.0",
 ]
@@ -22,6 +22,8 @@ classifiers=[
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.1",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3 :: Only",
     "Operating System :: OS Independent",
     "Intended Audience :: Developers",
@@ -67,7 +69,7 @@ install = ["--no-isolation"]
 [tool.pdm.scripts]
 format = "ruff format src/"
 lint = "ruff check --fix src/"
-test = "nox"
+test = "nox -s tests"
 all = {composite = ["format", "lint", "test"]}
 
 [tool.pdm.build]
@@ -75,11 +77,11 @@ includes = []
 
 [dependency-groups]
 dev = [
-    "coverage[toml]>=7.6.7",
     "setuptools",
     "meson-python>=0.16.0",
     "ninja>=1.8.2",
     "ruff>=0.7.3",
+    "coverage[toml]>=7.6.7",
     "pytest>=8.3.3",
     "nox[uv]>=2024.10.9",
     "pytest-lazy-fixtures>=1.1.1",

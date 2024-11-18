@@ -40,3 +40,7 @@ def alphas(request):
 @pytest.fixture(params=[-1, 0, 5])
 def n_splits(request):
     return request.param
+
+
+def record_numpy_version(record_property):
+    record_property("numpy_version", np.__version__)

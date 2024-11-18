@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## 2.6.1 - 2024-11-18
+### Changed
+* Parameterized unit tests in nox to test a range of python versions > 3.10 and
+  numpy >1.26
+  * Trying to get 3.9 to work is a bust
+
 ## 2.6.0 - 2024-11-16
 ### Changed
 * In root `meson.build`, replace `import numpy` and `numpy.f2py.get_include()` to 
