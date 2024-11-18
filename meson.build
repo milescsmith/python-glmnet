@@ -2,7 +2,7 @@
 # a build file based on that from https://github.com/amolenaar/meson-python-pdm-example
 # and whatever I need to steal from Scipy to get this to work
 project('glmnet', 'c',
-  version : '2.5.0',
+  version : '2.6.0',
   meson_version: '>= 1.5.0',
   default_options : [
     'warning_level=1',
